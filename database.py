@@ -19,9 +19,21 @@ COLUMN_MAP = [
 def create_integrated_sales_view(conn):
     cursor = conn.cursor()
 
-    # 🔥 날짜 변환 제거 (가장 안전한 방식)
-    plan_cols = ", ".join([f"{orig} AS {std}" for std, orig, _ in COLUMN_MAP])
-    actual_cols = ", ".join([f"{orig} AS {std}" for std, _, orig in COLUMN_MAP])
+    # 첫 번째 컬럼(매출연월)에 대해 STRFTIME 적용
+    # plan_cols 구성: STRFTIME('%Y-%m', 계획년월) AS 매출연월, 나머지 컬럼 AS std...
+    plan_cols_list = []
+    actual_cols_list = []
+
+    for i, (std, plan_orig, actual_orig) in enumerate(COLUMN_MAP):
+        if std == "매출연월":
+            plan_cols_list.append(f"STRFTIME('%Y-%m', {plan_orig}) AS {std}")
+            actual_cols_list.append(f"STRFTIME('%Y-%m', {actual_orig}) AS {std}")
+        else:
+            plan_cols_list.append(f"{plan_orig} AS {std}")
+            actual_cols_list.append(f"{actual_orig} AS {std}")
+
+    plan_cols = ", ".join(plan_cols_list)
+    actual_cols = ", ".join(actual_cols_list)
 
     cursor.execute("DROP VIEW IF EXISTS view_integrated_sales")
 
