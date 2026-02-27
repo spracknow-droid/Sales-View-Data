@@ -5,6 +5,14 @@ import io
 import pandas as pd
 from database import create_integrated_sales_view, get_view_data
 
+def convert_df_to_excel(df):
+    """데이터프레임을 엑셀 바이트로 변환"""
+    output = io.BytesIO()
+    # xlsxwriter 엔진을 사용하여 엑셀 파일 생성
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    return output.getvalue()
+
 def main():
     st.set_page_config(page_title="Sales Data Integrator", layout="wide")
     st.title("판매 데이터 통합 View")
@@ -20,7 +28,7 @@ def main():
         try:
             conn = sqlite3.connect(temp_db_path)
             
-            # 1. View 생성 (리스트 기반 로직 실행)
+            # 1. View 생성
             create_integrated_sales_view(conn)
             st.sidebar.success("✅ 통합 View 생성 완료")
 
@@ -29,23 +37,20 @@ def main():
             df = get_view_data(conn)
             
             if not df.empty:
-                # 엑셀 다운로드 로직 준비
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Sheet1')
-                excel_data = output.getvalue()
+                # [수정] 데이터프레임을 먼저 화면에 뿌려줍니다 (사용자 대기 시간 감소)
+                st.dataframe(df, use_container_width=True)
+                st.write(f"총 데이터: {len(df)} 건")
 
-                # 다운로드 버튼 추가
+                # [수정] 엑셀 변환 및 다운로드 버튼 배치 (데이터 아래쪽)
+                excel_data = convert_df_to_excel(df)
+                
                 st.download_button(
                     label="📂 엑셀 파일로 다운로드",
                     data=excel_data,
                     file_name="integrated_sales_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key='download-excel' # 버튼을 고유하게 식별하기 위한 키 추가
                 )
-
-                # 데이터프레임 화면 표시
-                st.dataframe(df, use_container_width=True)
-                st.write(f"총 데이터: {len(df)} 건")
             else:
                 st.info("데이터가 존재하지 않습니다.")
             
