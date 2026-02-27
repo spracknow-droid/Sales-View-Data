@@ -23,7 +23,7 @@ def main():
             st.sidebar.success("✅ 통합 View 생성 완료")
 
             # 2. 데이터 가져오기 및 출력
-            st.subheader("📋 통합 판매 데이터 (view_integrated_sales)")
+            st.subheader("📋 판매 분석을 위한 View Table을 생성합니다.")
             df = get_view_data(conn)
             
             if not df.empty:
