@@ -5,13 +5,16 @@ import io
 import pandas as pd
 from database import create_integrated_sales_view, get_view_data
 
+# 엑셀 변환 로직을 캐싱하여 중복 연산을 방지합니다.
+@st.cache_data
 def convert_df_to_excel(df):
-    """데이터프레임을 엑셀 바이트로 변환"""
-    output = io.BytesIO()
-    # xlsxwriter 엔진을 사용하여 엑셀 파일 생성
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
-    return output.getvalue()
+    try:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Sheet1')
+        return output.getvalue()
+    except Exception as e:
+        return e
 
 def main():
     st.set_page_config(page_title="Sales Data Integrator", layout="wide")
@@ -32,31 +35,42 @@ def main():
             create_integrated_sales_view(conn)
             st.sidebar.success("✅ 통합 View 생성 완료")
 
-            # 2. 데이터 가져오기 및 출력
-            st.subheader("📋 판매 분석을 위한 View Table")
+            # 2. 데이터 가져오기
             df = get_view_data(conn)
             
             if not df.empty:
-                # [수정] 데이터프레임을 먼저 화면에 뿌려줍니다 (사용자 대기 시간 감소)
-                st.dataframe(df, use_container_width=True)
-                st.write(f"총 데이터: {len(df)} 건")
-
-                # [수정] 엑셀 변환 및 다운로드 버튼 배치 (데이터 아래쪽)
-                excel_data = convert_df_to_excel(df)
+                st.subheader("📋 판매 분석을 위한 View Table")
                 
-                st.download_button(
-                    label="📂 엑셀 파일로 다운로드",
-                    data=excel_data,
-                    file_name="integrated_sales_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key='download-excel' # 버튼을 고유하게 식별하기 위한 키 추가
-                )
+                # [강력 조치] 버튼을 데이터프레임보다 위에 배치하고 레이아웃을 분리합니다.
+                menu_col1, menu_col2 = st.columns([1, 4])
+                
+                with menu_col1:
+                    # 엑셀 변환 시도
+                    excel_data = convert_df_to_excel(df)
+                    
+                    if isinstance(excel_data, bytes):
+                        st.download_button(
+                            label="📂 엑셀 다운로드",
+                            data=excel_data,
+                            file_name="integrated_sales_data.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key='btn_download_excel'
+                        )
+                    else:
+                        st.error("엑셀 변환 실패")
+                
+                with menu_col2:
+                    st.write(f"📊 총 {len(df)}건의 데이터가 로드되었습니다.")
+
+                # 데이터프레임 표시
+                st.dataframe(df, use_container_width=True)
+                
             else:
                 st.info("데이터가 존재하지 않습니다.")
             
             conn.close()
         except Exception as e:
-            st.error(f"오류 발생: {e}")
+            st.error(f"실행 중 오류 발생: {e}")
     else:
         st.info("사이드바에서 DB 파일을 업로드해주세요.")
 
