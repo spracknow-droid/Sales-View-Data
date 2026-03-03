@@ -9,17 +9,17 @@ def create_integrated_sales_view(conn):
     actual_cols_list = []
 
     for std, plan_orig, actual_orig in COLUMN_MAP:
-        # 1. 날짜 처리
+        # 1. 날짜 처리 (테이블 별칭 P, A 명시)
         if std == "매출연월":
             plan_cols_list.append(f"STRFTIME('%Y-%m', P.{plan_orig}) AS {std}")
             actual_cols_list.append(f"STRFTIME('%Y-%m', A.{actual_orig}) AS {std}")
         
-        # 2. 고객그룹 처리 (두 테이블 모두 마스터에서 가져오도록 통일)
+        # 2. 고객그룹 처리 (마스터 테이블 M에서 고정적으로 가져옴)
         elif std == "고객그룹":
             plan_cols_list.append(f"M.고객그룹 AS {std}")
             actual_cols_list.append(f"M.고객그룹 AS {std}")
             
-        # 3. 기타 컬럼
+        # 3. 기타 컬럼 (매출처, 품목 등 모든 컬럼에 별칭 부여)
         else:
             plan_cols_list.append(f"P.{plan_orig} AS {std}")
             actual_cols_list.append(f"A.{actual_orig} AS {std}")
@@ -29,7 +29,7 @@ def create_integrated_sales_view(conn):
 
     cursor.execute("DROP VIEW IF EXISTS view_integrated_sales")
     
-    # 판매계획(P)과 판매실적(A) 모두 마스터 테이블(M)과 JOIN 합니다.
+    # SQL 쿼리 실행
     sql = f"""
         CREATE VIEW view_integrated_sales AS
         SELECT '판매계획' AS 데이터구분, {plan_cols} 
@@ -43,5 +43,10 @@ def create_integrated_sales_view(conn):
         LEFT JOIN customer_master AS M ON A.매출처 = M.매출처
     """
     
-    cursor.execute(sql)
-    conn.commit()
+    try:
+        cursor.execute(sql)
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        # 테이블이나 컬럼이 없을 경우 구체적인 에러 메시지 출력
+        print(f"SQL 실행 오류: {e}")
+        raise e
