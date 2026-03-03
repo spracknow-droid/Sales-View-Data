@@ -19,7 +19,13 @@ def create_integrated_sales_view(conn):
             plan_cols_list.append(f"M.고객그룹 AS {std}")
             actual_cols_list.append(f"M.고객그룹 AS {std}")
             
-        # 3. 기타 컬럼
+        # 3. [수정] 실적 데이터에 없는 컬럼(NULL) 처리
+        # actual_orig가 "NULL"인 경우 테이블 별칭(A.)을 붙이지 않습니다.
+        elif actual_orig == "NULL":
+            plan_cols_list.append(f"P.{plan_orig} AS {std}")
+            actual_cols_list.append(f"NULL AS {std}")
+            
+        # 4. 기타 일반 컬럼
         else:
             plan_cols_list.append(f"P.{plan_orig} AS {std}")
             actual_cols_list.append(f"A.{actual_orig} AS {std}")
@@ -29,7 +35,7 @@ def create_integrated_sales_view(conn):
 
     cursor.execute("DROP VIEW IF EXISTS view_integrated_sales")
     
-    # 조인 조건 수정: 마스터 테이블(M)의 컬럼명을 '거래처'로 변경
+    # 통합 뷰 생성 SQL
     sql = f"""
         CREATE VIEW view_integrated_sales AS
         SELECT '판매계획' AS 데이터구분, {plan_cols} 
