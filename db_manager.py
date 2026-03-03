@@ -5,23 +5,23 @@ from config import COLUMN_MAP
 def create_integrated_sales_view(conn):
     cursor = conn.cursor()
     
-    # 1. 계획(Plan)용 컬럼 구성
     plan_cols_list = []
-    for std, plan_orig, _ in COLUMN_MAP:
+    actual_cols_list = []
+
+    for std, plan_orig, actual_orig in COLUMN_MAP:
+        # 1. 날짜 처리
         if std == "매출연월":
             plan_cols_list.append(f"STRFTIME('%Y-%m', P.{plan_orig}) AS {std}")
+            actual_cols_list.append(f"STRFTIME('%Y-%m', A.{actual_orig}) AS {std}")
+        
+        # 2. 고객그룹 처리 (두 테이블 모두 마스터에서 가져오도록 통일)
+        elif std == "고객그룹":
+            plan_cols_list.append(f"M.고객그룹 AS {std}")
+            actual_cols_list.append(f"M.고객그룹 AS {std}")
+            
+        # 3. 기타 컬럼
         else:
             plan_cols_list.append(f"P.{plan_orig} AS {std}")
-
-    # 2. 실적(Actual)용 컬럼 구성
-    actual_cols_list = []
-    for std, _, actual_orig in COLUMN_MAP:
-        if std == "매출연월":
-            actual_cols_list.append(f"STRFTIME('%Y-%m', A.{actual_orig}) AS {std}")
-        elif std == "고객그룹":
-            # 실적 테이블에 없으므로 마스터 테이블(M)에서 가져옴
-            actual_cols_list.append(f"M.고객그룹 AS {std}")
-        else:
             actual_cols_list.append(f"A.{actual_orig} AS {std}")
 
     plan_cols = ", ".join(plan_cols_list)
@@ -29,11 +29,12 @@ def create_integrated_sales_view(conn):
 
     cursor.execute("DROP VIEW IF EXISTS view_integrated_sales")
     
-    # SQL 수정: 실적 데이터 조회 시 customer_master와 JOIN
+    # 판매계획(P)과 판매실적(A) 모두 마스터 테이블(M)과 JOIN 합니다.
     sql = f"""
         CREATE VIEW view_integrated_sales AS
         SELECT '판매계획' AS 데이터구분, {plan_cols} 
         FROM sales_plan_data AS P
+        LEFT JOIN customer_master AS M ON P.매출처 = M.매출처
         
         UNION ALL
         
